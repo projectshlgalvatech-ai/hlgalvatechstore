@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HL Galvatech — Stocks and Store Management</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ===================== ROLE SELECT ===================== -->
+<div id="role-screen">
+  <button class="theme-toggle" id="theme-toggle-role" onclick="toggleTheme()">Light mode</button>
+  <div class="role-wrap">
+    <div class="role-head">
+      <h1 class="logo-link" id="main-logo" onclick="handleLogoClick()" title="Open configured link">HL <em>Galvatech</em></h1>
+      <p>Stocks and Store Management</p>
+    </div>
+    <form class="role-card login-card" id="login-form" autocomplete="off">
+      <div class="field"><label>Login ID</label><input id="login-username" autocomplete="username"></div>
+      <div class="field"><label>Password</label><input required type="password" id="login-password" autocomplete="current-password"></div>
+      <div class="login-error" id="login-error"></div>
+      <button class="btn" type="submit">Log in</button>
+      <div class="admin-link" onclick="openForgotPasswordModal()">Forgot password?</div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal-box" id="modal-box"></div>
+</div>
+
+<!-- ===================== APP ===================== -->
+<div id="app">
+  <header class="plate">
+    <div class="plate-inner">
+      <div class="brand">
+        <h1 class="logo-link" id="app-logo" onclick="handleLogoClick()" title="Open configured link">HL <span>Galvatech</span></h1>
+        <div class="sub">Stocks and Store Management</div>
+      </div>
+      <div class="device-tag" id="device-tag-label"></div>
+      <div class="header-right">
+        <form class="header-search" id="header-search" autocomplete="off" onsubmit="event.preventDefault(); performHeaderSearch();">
+          <input type="text" id="header-search-input" placeholder="Search entries…" oninput="headerSearchLive()">
+          <button type="submit" title="Search entries">🔍</button>
+          <div class="header-search-results" id="header-search-results"></div>
+        </form>
+        <div class="account-settings" id="account-settings-wrap">
+          <button class="btn-account-settings" type="button" onclick="toggleAccountSettings()">Account settings ▾</button>
+          <div class="account-settings-panel" id="account-settings-panel">
+            <button type="button" onclick="openChangePasswordModal(); closeAccountSettings();">Change password</button>
+            <button class="theme-toggle" id="theme-toggle-app" onclick="toggleTheme()">Light mode</button>
+          </div>
+        </div>
+        <button class="btn-logout" type="button" onclick="logoutDevice()">Log out</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <nav class="side" id="side-nav"></nav>
+    <main>
+      <div id="zoom-wrap">
+        <div class="sync-note"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">synced across devices</span> — last update <span id="last-sync">just now</span></div>
+        <div id="alert-banner"></div>
+        <div id="d1-access-banner"></div>
+        <div id="view"></div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<!-- =========================================================================
+     FIREBASE SDK — Firestore (data sync) + Storage (file/backup uploads).
+     Compat build is used deliberately (not the modular v9+ API) so the rest
+     of this single-file app can keep calling plain global `firebase.*`
+     objects without a build step or <script type="module">.
+     ========================================================================= -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+<!-- ExcelJS — used only by the Admin Panel's "Save entries" button to build the
+     exported .xlsx workbook. Chosen over SheetJS's free/community build
+     specifically because it actually writes cell styling (colours, fonts,
+     borders, number formats) into the file — SheetJS's community edition
+     parses styles but silently drops them on write, which is why an earlier
+     version of this export looked plain when opened. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<!-- JSZip — used only by the Admin Panel's "Download permanent file" button to
+     bundle index.html + styles.css + all the .js files into one .zip with the
+     Firebase config baked in, since the app is now split across multiple files
+     instead of one. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<script src="core-init.js"></script>
+<script src="admin-export.js"></script>
+<script src="auth-session-admin.js"></script>
+<script src="router-widgets.js"></script>
+<script src="device1-materials.js"></script>
+<script src="device1-bulk-scope.js"></script>
+<script src="device2-store.js"></script>
+<script src="entries-factory-site.js"></script>
+<script src="mrf-requester-repair.js"></script>
+<script src="device3-so-projects.js"></script>
+</body>
+</html>
