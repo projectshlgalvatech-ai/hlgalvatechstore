@@ -325,13 +325,20 @@ function matGridSOListId(pid){ return 'mg-so-list-'+pid; }
 function productMaterialsGridHTML(so, p){
   const rows = p.materials.map((r, ri)=>{
     const mat = materialById(r.materialId);
-    if(!mat) return '';
     const lid = r.id;
+    if(!mat){
+      // The material this line points to no longer exists in the Materials
+      // list (deleted or merged after being added to this SO). Show it
+      // plainly instead of silently vanishing the row — the product's
+      // material count includes it either way, so hiding it just makes
+      // materials look like they "disappeared".
+      return `<tr><td colspan="13" class="hint" style="padding:8px">⚠ "${m_escape(r.materialName||'This material')}" no longer exists in the Materials list, so its details can't be edited here. Remove it from this product and re-add it if it should still be tracked.</td></tr>`;
+    }
     const knownType = allMaterialTypeOptions().some(t=>t.toLowerCase()===mat.type.toLowerCase());
     return `<tr>
       <td><input class="mg-cell" data-gr="${ri}" data-gc="0" id="mg-${lid}-name" value="${m_escape(mat.name)}" style="width:130px"></td>
-      <td><select class="mg-cell" data-gr="${ri}" data-gc="1" id="mg-${lid}-type" onchange="matGridTypeChanged('${lid}')">${allMaterialTypeOptions().map(t=>`<option ${knownType && t.toLowerCase()===mat.type.toLowerCase()?'selected':''}>${t}</option>`).join('')}<option value="__other__" ${!knownType?'selected':''}>Other…</option></select></td>
-      <td id="mg-${lid}-type-other-wrap" style="display:${knownType?'none':'table-cell'}"><input id="mg-${lid}-type-other" placeholder="specify" value="${knownType?'':m_escape(mat.type)}" style="width:100px"></td>
+      <td><select class="mg-cell" data-gr="${ri}" data-gc="1" id="mg-${lid}-type" onchange="matGridTypeChanged('${lid}')">${allMaterialTypeOptions().map(t=>`<option ${knownType && t.toLowerCase()===mat.type.toLowerCase()?'selected':''}>${t}</option>`).join('')}<option value="__other__" ${!knownType?'selected':''}>Other…</option></select>
+        <input id="mg-${lid}-type-other" placeholder="specify type" value="${knownType?'':m_escape(mat.type)}" style="width:100px;margin-top:4px;display:${knownType?'none':'block'}"></td>
       <td><select class="mg-cell" data-gr="${ri}" data-gc="2" id="mg-${lid}-cat">${DB.categories.map(c=>`<option ${c===mat.category?'selected':''}>${c}</option>`).join('')}</select></td>
       <td><input class="mg-cell" data-gr="${ri}" data-gc="3" id="mg-${lid}-code" value="${m_escape(mat.productCode||'')}" style="width:90px"></td>
       <td><input class="mg-cell" data-gr="${ri}" data-gc="4" id="mg-${lid}-size" value="${m_escape(mat.size||'')}" style="width:90px"></td>
@@ -348,7 +355,7 @@ function productMaterialsGridHTML(so, p){
   return `<div id="matgrid-${p.id}">
     <div style="overflow-x:auto;margin-top:8px">
       <table style="min-width:1350px">
-        <thead><tr><th>Name</th><th>Type</th><th></th><th>Category</th><th>Code</th><th>Size</th><th>Grade</th><th>Rack</th><th>Price</th><th>Unit</th><th>PO No.</th><th>SO No.</th><th>Stock</th><th>Nos.</th></tr></thead>
+        <thead><tr><th>Name</th><th>Type</th><th>Category</th><th>Code</th><th>Size</th><th>Grade</th><th>Rack</th><th>Price</th><th>Unit</th><th>PO No.</th><th>SO No.</th><th>Stock</th><th>Nos.</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
@@ -364,8 +371,8 @@ function productMaterialsGridHTML(so, p){
 }
 function matGridTypeChanged(lid){
   const sel = document.getElementById('mg-'+lid+'-type');
-  const wrap = document.getElementById('mg-'+lid+'-type-other-wrap');
-  if(sel && wrap) wrap.style.display = sel.value==='__other__' ? 'table-cell' : 'none';
+  const otherInput = document.getElementById('mg-'+lid+'-type-other');
+  if(sel && otherInput) otherInput.style.display = sel.value==='__other__' ? 'block' : 'none';
 }
 window.matGridTypeChanged = matGridTypeChanged;
 
@@ -401,6 +408,7 @@ async function saveProductMatGrid(soId, pid){
   const p = so.products.find(x=>x.id===pid); if(!p) return;
   const drafts = [];
   for(const r of p.materials){
+    if(!materialById(r.materialId)) continue; // orphaned line — nothing was rendered for it, nothing to save
     const lid = r.id;
     const val = (suffix)=>{ const el = document.getElementById(`mg-${lid}-${suffix}`); return el ? el.value : ''; };
     const name = val('name').trim();
