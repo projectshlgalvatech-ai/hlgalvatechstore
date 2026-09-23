@@ -431,6 +431,7 @@ function wireGateNewForm(){
 function renderGateMaterialsPanel(req){
   const isOpen = expandedChallanId === req.id;
   const stale = isChallanStale(req);
+  const siteList = Array.from(new Set((DB.siteInstallMaterial||[]).map(r=>r.site).filter(Boolean)));
   const head = `<div class="challan-accordion-head" onclick="toggleChallanPanel('${req.id}')">
       <div class="challan-accordion-title">
         <span class="chevron${isOpen?' open':''}">▸</span>
@@ -467,6 +468,27 @@ function renderGateMaterialsPanel(req){
       <div class="row">
         <div class="field"><label>Location</label><select id="g-location-${req.id}">${DB.locations.map(l=>`<option>${l}</option>`).join('')}</select></div>
       </div>
+      <div class="row" style="align-items:center">
+        <div class="field" style="flex:0 0 auto">
+          <label style="display:flex;align-items:center;gap:6px;font-weight:600;white-space:nowrap">
+            <input type="checkbox" id="g-site-delivered-${req.id}" style="width:auto" onchange="toggleGateSiteDelivered('${req.id}')"> Site Delivered
+          </label>
+        </div>
+      </div>
+      <div class="row" id="g-site-delivered-fields-${req.id}" style="display:none">
+        <div class="field" style="position:relative"><label>Site</label>
+          <input id="g-sd-site-${req.id}" list="g-sd-site-list-${req.id}" placeholder="Site name / location">
+          <datalist id="g-sd-site-list-${req.id}">${siteList.map(s=>`<option value="${m_escape(s)}">`).join('')}</datalist>
+        </div>
+        <div class="field"><label>Purpose</label>
+          <select id="g-sd-purpose-${req.id}">
+            <option value="">— Select —</option>
+            <option value="Spare Part / Replacement">Spare Part / Replacement</option>
+            <option value="New Installation">New Installation</option>
+          </select>
+        </div>
+      </div>
+      <div class="section-sub" id="g-site-delivered-note-${req.id}" style="display:none">This material will still be logged here as received (GRN) — but the same save will also immediately log it as issued out to the site above (Site Installation Material). Net stock at this location won't change, but both records get created for the paper trail.</div>
       <div class="excel-wrap">
         <table class="excel-table">
           <thead><tr>
@@ -491,6 +513,12 @@ function renderGateMaterialsPanel(req){
     </form>
   </div>`;
 }
+function toggleGateSiteDelivered(reqId){
+  const checked = document.getElementById('g-site-delivered-'+reqId).checked;
+  document.getElementById('g-site-delivered-fields-'+reqId).style.display = checked ? 'flex' : 'none';
+  document.getElementById('g-site-delivered-note-'+reqId).style.display = checked ? 'block' : 'none';
+}
+window.toggleGateSiteDelivered = toggleGateSiteDelivered;
 function wireGateMaterialsForm(req){
   const rowsWrap = document.getElementById('g-material-rows-'+req.id);
   function refreshProductOptionsForAllRows(){
@@ -687,6 +715,15 @@ function wireGateMaterialsForm(req){
       const productId = (so && productSelect.value) ? productSelect.value : '';
       lines.push({mat, qty, qtyNos, qtyUnit, value, productId, newlyCreated});
     }
+    const siteDeliveredChecked = document.getElementById('g-site-delivered-'+req.id).checked;
+    let siteDeliveredSite = '', siteDeliveredPurpose = '';
+    if(siteDeliveredChecked){
+      siteDeliveredSite = (document.getElementById('g-sd-site-'+req.id).value||'').trim();
+      siteDeliveredPurpose = document.getElementById('g-sd-purpose-'+req.id).value;
+      if(!lines.length){ return fail('Add at least one material line before saving a Site Delivered challan'); }
+      if(!siteDeliveredSite){ return fail('Enter the Site for this Site Delivered challan'); }
+      if(!siteDeliveredPurpose){ return fail('Select a Purpose for this Site Delivered challan'); }
+    }
     // Nothing was actually filled in on any row — treat "Save & Close" the same as
     // the old dedicated "Close request — no materials" button used to: close the
     // challan out with nothing added, after the same confirmation.
@@ -716,6 +753,7 @@ function wireGateMaterialsForm(req){
     let newMatCount = 0;
     let mrfLinked = false;
     const heldForApproval = [];
+    const siteDeliveredLines = []; // only lines that actually get stock added below — see note in the pendingApproval branch
     lines.forEach(({mat, qty, qtyNos, qtyUnit, value, productId, newlyCreated})=>{
       if(newlyCreated) newMatCount++;
       const entry = Object.assign({ id: uid(), materialId: mat.id, materialName: mat.name, qty }, header);
@@ -736,6 +774,10 @@ function wireGateMaterialsForm(req){
         pr.purchasedDate = todayStr();
         mrfLinked = true;
         if(acc){
+          // Held for approval — stock is NOT added yet (see below), so this line can't
+          // be part of a Site Delivered entry either; it hasn't actually arrived in
+          // stock to be sent back out. It'll need to be handled manually via Site
+          // Installation Material once the MRF approval clears and stock lands for real.
           pr.status = 'awaiting-stock-approval'; pr.requestAccountId = acc.id; pr.approvalStatus = 'awaiting';
           entry.pendingApproval = true; entry.mrfRequestId = pr.id;
           heldForApproval.push(`${mat.name} (${acc.name})`);
@@ -756,10 +798,38 @@ function wireGateMaterialsForm(req){
       addStock(mat.id, header.location, qty);
       if(qtyNos>0){ addStockNos(mat.id, header.location, qtyNos); }
       resolveCheckFor(mat.id);
+      if(siteDeliveredChecked){
+        siteDeliveredLines.push({
+          id: uid(), productCode: mat.productCode||'', materialName: mat.name, materialId: mat.id,
+          qty, qtyUnit: qtyUnit||'', size: mat.size||'', grade: mat.grade||'',
+          materialHealth: 'Good', returnedQty: 0, returnedHealth: null, usedQty: 0
+        });
+      }
     });
     await saveKey('gateEntries'); await saveKey('stock'); await saveKey('stockNos'); await saveKey('tickets');
     if(soChanged){ await saveKey('soList'); await saveKey('excessPool'); }
     if(mrfLinked){ await saveKey('mrf'); }
+
+    // Site Delivered: this challan's material never really settles into the warehouse —
+    // it goes straight out to a site — so immediately after the GRN receipt above,
+    // book the exact same lines out as a Site Installation Material entry too. Net
+    // stock at this location ends up unchanged, but both the GRN receipt and the site
+    // issuance now exist as separate, auditable records.
+    let siteDeliveredEntry = null;
+    if(siteDeliveredChecked && siteDeliveredLines.length){
+      if(!DB.siteInstallMaterial) DB.siteInstallMaterial = [];
+      siteDeliveredEntry = {
+        id: uid(), srNo: DB.siteInstallMaterial.length + 1,
+        site: siteDeliveredSite, issuedOn: todayStr(), vendorName: req.supplier || '', location: header.location,
+        date: todayStr(), time: nowTimeStr(), status: 'open',
+        purpose: siteDeliveredPurpose,
+        sourceChallanNo: req.challanNo,
+        materials: siteDeliveredLines
+      };
+      DB.siteInstallMaterial.push(siteDeliveredEntry);
+      siteDeliveredLines.forEach(l=>{ if(l.materialId) addStock(l.materialId, header.location, -l.qty); });
+      await saveKey('siteInstallMaterial'); await saveKey('stock');
+    }
 
     // Re-resolve the live record by id right before writing the status — several
     // awaited saves have happened above, each one a window where the background
@@ -784,7 +854,8 @@ function wireGateMaterialsForm(req){
     const newMatNote = newMatCount ? ` · ${newMatCount} new material(s) added to master list` : '';
     const factoryNote = req.forFactoryUse ? ' · Marked for internal factory use' : '';
     const heldNote = heldForApproval.length ? ' · Awaiting approval before entering stock: ' + heldForApproval.join(', ') : '';
-    toast(`Gate entry saved — ${lines.length} material line(s) on challan ${header.challanNo||'—'}` + excessNote + newMatNote + factoryNote + heldNote);
+    const siteDeliveredNote = siteDeliveredEntry ? ` · Also issued to site "${siteDeliveredEntry.site}" as Site Installation Sr No. ${siteDeliveredEntry.srNo} (${siteDeliveredEntry.purpose})` : '';
+    toast(`Gate entry saved — ${lines.length} material line(s) on challan ${header.challanNo||'—'}` + excessNote + newMatNote + factoryNote + heldNote + siteDeliveredNote);
     // Close this challan out — it's completed now, so the accordion panel (and its
     // form) disappears on the next render instead of staying open for more additions.
     expandedChallanId = null;

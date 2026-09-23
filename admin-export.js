@@ -118,7 +118,7 @@ function buildEntriesWorkbookSheets(){
     (entry.materials||[]).forEach(m=>{
       siteMatRows.push({
         srNo: entry.srNo, site: entry.site, issuedOn: entry.issuedOn, vendorName: entry.vendorName,
-        location: entry.location, status: entry.status, date: entry.date, time: entry.time,
+        location: entry.location, purpose: entry.purpose, sourceChallanNo: entry.sourceChallanNo, status: entry.status, date: entry.date, time: entry.time,
         productCode: m.productCode, materialName: m.materialName, size: m.size, grade: m.grade, qty: m.qty, qtyUnit: m.qtyUnit, materialHealth: m.materialHealth,
         returnedQty: m.returnedQty, returnedHealth: m.returnedHealth, usedQty: m.usedQty,
         productMismatch: m.productMismatch, mismatchNote: m.mismatchNote
@@ -128,7 +128,8 @@ function buildEntriesWorkbookSheets(){
   siteMatRows.sort((a,b)=> (a.srNo||0)-(b.srNo||0));
   sheets.push({name:'Site Installation Material', rows:siteMatRows, cols:[
     ['Sr No', 'srNo'], ['Site', r=>r.site||''], ['Issued On', r=>xlDate(r.issuedOn)], ['Vendor Name', r=>r.vendorName||''],
-    ['Location', r=>r.location||''], ['Product Code', r=>r.productCode||''], ['Material Name', r=>r.materialName||''],
+    ['Location', r=>r.location||''], ['Purpose', r=>r.purpose||''], ['Source GRN Challan', r=>r.sourceChallanNo||''],
+    ['Product Code', r=>r.productCode||''], ['Material Name', r=>r.materialName||''],
     ['Size', r=>r.size||''], ['Grade', r=>r.grade||''],
     ['Qty Issued', r=>r.qty, true], ['Qty Unit', r=>r.qtyUnit||''], ['Material Health', r=>r.materialHealth||''],
     ['Returned Qty', r=>r.returnedQty||0, true],

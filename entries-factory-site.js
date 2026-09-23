@@ -386,7 +386,7 @@ function toggleSimHealthField(){ simHealthUIState = !simHealthUIState; render();
 window.toggleSimHealthField = toggleSimHealthField;
 function simResetDraft(){
   simDraft = {
-    site:'', issuedOn: todayStr(), vendorName:'', location:(DB.locations&&DB.locations[0])||'',
+    site:'', issuedOn: todayStr(), vendorName:'', location:(DB.locations&&DB.locations[0])||'', purpose:'',
     materials: [{productCode:'', materialName:'', materialId:null, qty:'', qtyUnit:'', size:'', grade:'', materialHealth:'Good'}]
   };
 }
@@ -491,6 +491,13 @@ function renderSiteMaterialDraftForm(){
         <div class="field"><label>Location (stock affected here)</label>
           <select id="sim-location" onchange="simDraft.location=this.value">${(DB.locations||[]).map(l=>`<option ${l===simDraft.location?'selected':''}>${l}</option>`).join('')}</select>
         </div>
+        <div class="field"><label>Purpose</label>
+          <select id="sim-purpose" onchange="simDraft.purpose=this.value">
+            <option value="" ${!simDraft.purpose?'selected':''}>— Select —</option>
+            <option value="Spare Part / Replacement" ${simDraft.purpose==='Spare Part / Replacement'?'selected':''}>Spare Part / Replacement</option>
+            <option value="New Installation" ${simDraft.purpose==='New Installation'?'selected':''}>New Installation</option>
+          </select>
+        </div>
       </div>
       <h3 style="margin:16px 0 8px;font-size:15px">Materials</h3>
       <div class="section-sub">Sending several materials out together? Download the template, fill in one row per material, and upload it back — fills the rows below instead of adding them one at a time.</div>
@@ -552,6 +559,7 @@ function wireSiteMaterialDraftForm(){
       id: uid(), srNo: DB.siteInstallMaterial.length + 1,
       site, issuedOn: simDraft.issuedOn, vendorName, location,
       date: todayStr(), time: nowTimeStr(), status:'open',
+      purpose: simDraft.purpose || '',
       materials: lines
     };
     DB.siteInstallMaterial.push(entry);
@@ -574,7 +582,7 @@ function renderSiteInstallGrouped(rows, withClose){
     return `<div class="ent-group">
       <button type="button" class="ent-group-toggle" onclick="toggleSimGroup('${entry.id}')">
         <span class="chev">${isOpen?'▾':'▸'}</span> Sr No. ${entry.srNo} — ${m_escape(entry.site)}
-        <span class="ent-group-meta">${xlDate(entry.issuedOn)||entry.date} · Vendor ${m_escape(entry.vendorName)||'—'} · ${m_escape(entry.location)||'—'} · ${matCount} material${matCount>1?'s':''} · ${siteInstallStatusBadge(entry)}</span>
+        <span class="ent-group-meta">${xlDate(entry.issuedOn)||entry.date} · Vendor ${m_escape(entry.vendorName)||'—'} · ${m_escape(entry.location)||'—'}${entry.purpose?' · '+m_escape(entry.purpose):''} · ${matCount} material${matCount>1?'s':''} · ${siteInstallStatusBadge(entry)}</span>
       </button>
       <div class="ent-group-body" style="display:${isOpen?'block':'none'}">
         <table><thead><tr><th>Product Code</th><th>Material Name</th><th>Size</th><th>Grade</th><th>Qty Issued</th><th>Material Health</th><th>Returned Qty</th><th>Return Condition</th><th>Installed (Used)</th><th>Product Mismatch</th></tr></thead><tbody>
@@ -824,6 +832,7 @@ function siteMaterialSlipHTML(entry){
       <div class="meta-cell"><span class="lbl">Issued On</span><span class="val">${xlDate(entry.issuedOn)||'—'}</span></div>
       <div class="meta-cell"><span class="lbl">Vendor Name</span><span class="val">${m_escape(entry.vendorName)||'—'}</span></div>
       <div class="meta-cell"><span class="lbl">Location</span><span class="val">${m_escape(entry.location)||'—'}</span></div>
+      ${entry.purpose ? `<div class="meta-cell"><span class="lbl">Purpose</span><span class="val">${m_escape(entry.purpose)}</span></div>` : ''}
       <div class="meta-cell"><span class="lbl">Entered</span><span class="val">${entry.date}${entry.time?', '+entry.time:''}</span></div>
       <div class="meta-cell"><span class="lbl">Closed</span><span class="val">${statusClosed ? (entry.closedDate||'—')+(entry.closedTime?', '+entry.closedTime:'') : '—'}</span></div>
     </div>
